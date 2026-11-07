@@ -1,0 +1,12 @@
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
+# Initialize the recommended text splitter
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000, 
+    chunk_overlap=200, 
+    add_start_index=True
+)
+
+if __name__ == "__main__":
+    all_splits = text_splitter.split_documents([Document(page_content="PINK FLOYD ♪♪♪ < Sajjan /> Home About Blog Awards & Certificates Work Blog Thoughts, ideas, and insights about software development Do You Really Need a CS Degree to Become a Great Developer? Do You Really Need a CS Degree to Become a Great Developer? I’m 20 years old. I’ve already worked with multiple companies, shipped real-world products, collaborated with teams, earned good money, and gained solid industry experience. Read Article TypeScript: Overrated or Essential in 2025? TypeScript: Overrated or Essential in 2025? TypeScript has exploded in popularity over the past few years — from sidekick to JavaScript, to being the default for most modern projects. Read Article Do You Really Need DSA (Data Structures & Algorithms) as a Software Engineer? Do You Really Need DSA (Data Structures & Algorithms) as a Software Engineer? You've probably seen YouTubers solving Leetcode all day, or heard stories of people cracking FAANG interviews by grinding 300+ questions. But is all that necessary? Is DSA really useful beyond interviews? Read Article Why System Design is Essential for Software Engineers Why System Design is Essential for Software Engineers In today’s world of scalable apps, massive traffic, and global users, writing good code is no longer enough. If you want to build real-world software that performs, scales, and survives — you need to understand system design. Read Article Understanding Microservice Architecture: What, When, and Why (or Why Not) to Use It Understanding Microservice Architecture: What, When, and Why (or Why Not) to Use It In the fast-paced world of software development, scalability, agility, and maintainability are the pillars of building robust applications. Enter Microservice Architecture — a buzzword that has gained significant traction in recent years Read Article Built with ❤️ by Sajjan Karna © 2026 Sajjan Karna. All Rights Reserved. Blogs | Sajjan Karna", metadata={"source": "example"})])
+    print(all_splits)
