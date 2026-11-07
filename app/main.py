@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from starlette.responses import Response
 
 from app.api.routes import router
 from app.services.conversation_orchestrator import ConversationOrchestrator
@@ -46,6 +47,11 @@ def create_app(
         conversation_orchestrator or ConversationOrchestrator()
     )
     application.include_router(router)
+
+    @application.head("/", tags=["health"])
+    async def root_head() -> Response:
+        """Provide a lightweight root endpoint for service availability checks."""
+        return Response(status_code=200)
 
     @application.get("/health", tags=["health"])
     async def health() -> dict[str, str]:
