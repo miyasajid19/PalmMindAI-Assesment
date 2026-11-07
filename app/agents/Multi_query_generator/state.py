@@ -9,4 +9,4 @@ class MultiQueryGeneratorState(TypedDict):
     current_query: str
     conversation_history: list[BaseMessage]
     available_documents: AvailableDocuments
-    generated_queries: list[GeneratedQuery]
+    generated_queries: GeneratedQuery

@@ -70,6 +70,8 @@ class AdaptiveKSelector:
             )
 
         eligible = []
+        from rich import print
+        print("\n\n\n\n+++++++++++Reranked Candidates:", reranked_candidates)
         for index, candidate in enumerate(reranked_candidates):
             if not isinstance(candidate, dict):
                 raise ValueError(f"Candidate {index} must be a dictionary.")
@@ -77,7 +79,7 @@ class AdaptiveKSelector:
                 raise ValueError(
                     f"Candidate {index} is missing required field: reranker_score."
                 )
-
+            print(f"\n\n\n\n\n\nCandidate {index} reranker_score: {candidate['reranker_score']}")
             score = candidate["reranker_score"]
             if isinstance(score, bool) or not isinstance(score, Real):
                 raise ValueError(f"Candidate {index} reranker_score must be numeric.")
@@ -101,8 +103,26 @@ class AdaptiveKSelector:
         )
 
         selected = eligible[: self.k_max]
+        if len(eligible) < self.k_min and reranked_candidates:
+            # Guarantee the minimum K from the best reranked candidates when
+            # thresholding alone would leave too few results. If the pool is
+            # smaller than k_min, return the entire available pool.
+            fallback = sorted(
+                reranked_candidates,
+                key=lambda candidate: (
+                    -float(candidate["reranker_score"]),
+                    candidate.get("rank", float("inf")),
+                    str(candidate.get("chunk_id", "")),
+                ),
+            )[: min(self.k_min, len(reranked_candidates))]
+            selected = []
+            for candidate in fallback:
+                enriched = dict(candidate)
+                if isinstance(candidate.get("metadata"), dict):
+                    enriched["metadata"] = dict(candidate["metadata"])
+                selected.append(enriched)
         expansion_required = (
-            len(selected) < self.k_min
+            len(eligible) < self.k_min
             and expansion_round < self.max_expansion_rounds
         )
 

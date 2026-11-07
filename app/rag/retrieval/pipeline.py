@@ -65,6 +65,7 @@ class HybridRetrievalPipeline:
                 [bm25, dense], rrf_k, [self.bm25_weight, self.dense_weight]
             )[:top_k]
 
+        total_scores = sum(score for _, score in ranked)
         results = [
             {
                 "rank": rank,
@@ -74,6 +75,12 @@ class HybridRetrievalPipeline:
             }
             for rank, (document, score) in enumerate(ranked, 1)
         ]
+        from rich import print
+        print("BM25 Results:", bm25)
+        print("\n\n\n\n")
+        print("Dense Results:", dense)
+        print("\n\n\n\n")
+        print("Fused Results:", results)
         return {
             "query": query,
             "mode": mode,

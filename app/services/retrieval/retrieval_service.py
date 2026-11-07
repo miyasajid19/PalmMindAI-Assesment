@@ -72,6 +72,8 @@ class RetrievalOrchestrator:
             conversation_history=history,
             available_documents=available_documents,
         )
+        from rich import print
+        print(f"\n\n\n\nGenerated Queries: {generated_queries}")
         if not generated_queries:
             raise RetrievalOrchestrationError(
                 "The contextualized query generator returned no usable query."
@@ -88,6 +90,7 @@ class RetrievalOrchestrator:
                 query=generated_query,
                 document_catalogue=document_catalogue,
             )
+            print("\n\n\n\nCandidate Generation Result:", candidate_result)
         except CandidateDocumentGenerationError as exc:
             logger.exception("Candidate generation failed.")
             response = self._empty_response(current_query=current_query, top_k=top_k, candidate_k=candidate_k, mode=mode, reason="candidate_generation_failed")
@@ -100,6 +103,9 @@ class RetrievalOrchestrator:
             candidate.document_version_id
             for candidate in candidate_result.candidates
         ]
+
+
+        print("\n\n\n\nCandidate Document Version IDs:", version_ids)
         if not version_ids:
             retrieved = []
         else:
@@ -115,11 +121,13 @@ class RetrievalOrchestrator:
                 exclude=exclude,
                 excluded_chunk_ids=excluded_chunk_ids,
             )
+            from rich import print
+            print("\n\n\n\nRetrieval Result:", retrieval_result)
             retrieved = retrieval_result["results"]
         reranked = await asyncio.to_thread(self.cross_encoder_reranker.rerank, current_query, retrieved) if retrieved else []
         selection = self.adaptive_k_selector.select(reranked, expansion_round=0)
-
-        return {
+        print("\n\n\n\nAdaptive Selection Result:", selection)
+        ans= {
             "query": current_query,
             "mode": mode,
             "top_k": top_k,
@@ -134,6 +142,8 @@ class RetrievalOrchestrator:
             "retrieval_reason": None,
             "candidate_generation_error": None,
         }
+        print("Retrieval Orchestrator Response:", ans)
+        return ans
 
     @staticmethod
     def _build_available_documents(document_catalogue: list[dict[str, Any]]) -> AvailableDocuments:

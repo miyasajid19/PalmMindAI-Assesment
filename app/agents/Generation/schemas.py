@@ -4,51 +4,32 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class GenerationStatus(str, Enum):
+    """Legacy status enum retained for import compatibility."""
+
     ANSWERED = "answered"
     PARTIAL = "partial"
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
 
 
 class AnswerSegment(BaseModel):
-    """One answer segment and the evidence references supporting it."""
+    """Legacy segment model retained for import compatibility."""
 
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    text: str = Field(
-        min_length=1,
-        description="A concise sentence or paragraph in the generated answer.",
-    )
-    citations: list[str] = Field(
-        default_factory=list,
-        description=(
-            "Evidence IDs supporting the factual claims in this segment. "
-            "Use only IDs supplied in the retrieved evidence."
-        ),
-    )
+    text: str = Field(min_length=1)
+    citations: list[str] = Field(default_factory=list)
 
 
 class GenerationOutput(BaseModel):
-    """Structured response produced by the generation agent."""
+    """Single-string answer contract produced by the generation agent."""
 
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    status: GenerationStatus = Field(
-        description=(
-            "Whether the answer is supported completely, partially, "
-            "or cannot be determined from the supplied evidence."
-        )
-    )
-    segments: list[AnswerSegment] = Field(
+    answer: str = Field(
         min_length=1,
         description=(
-            "Ordered answer segments. Attach citations to the segment "
-            "containing the claims they support."
+            "The complete user-facing Markdown answer, including any concise "
+            "Sources footer when supported by retrieved evidence."
         ),
     )
 
@@ -61,13 +42,7 @@ class GenerationStreamEventType(str, Enum):
 
 
 class GenerationStreamEvent(BaseModel):
-    """
-    One event from a streaming generation request.
-
-    CONTENT_DELTA events contain provisional text for a single answer
-    segment. COMPLETED contains the fully parsed and citation-validated
-    GenerationOutput.
-    """
+    """One event from a streaming generation request."""
 
     model_config = ConfigDict(extra="forbid")
 

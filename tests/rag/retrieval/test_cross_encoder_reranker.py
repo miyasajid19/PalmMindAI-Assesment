@@ -50,6 +50,20 @@ def test_reranker_sorts_by_cross_encoder_score():
     ]
 
 
+def test_reranker_sigmoid_normalizes_raw_logits_and_preserves_raw_score():
+    model = FakeCrossEncoder([-1.14, 2.0])
+    reranker = CrossEncoderReranker(model=model)
+    candidates = [_candidate("chunk-1", "first", 1), _candidate("chunk-2", "second", 2)]
+
+    result = reranker.rerank("query", candidates)
+
+    by_id = {item["chunk_id"]: item for item in result}
+    assert by_id["chunk-1"]["raw_reranker_score"] == pytest.approx(-1.14)
+    assert by_id["chunk-1"]["reranker_score"] == pytest.approx(0.242, abs=0.001)
+    assert by_id["chunk-2"]["raw_reranker_score"] == pytest.approx(2.0)
+    assert by_id["chunk-2"]["reranker_score"] == pytest.approx(0.8808, abs=0.001)
+
+
 def test_reranker_preserves_input_candidates_and_supports_top_k():
     model = FakeCrossEncoder([0.8, 0.7])
     reranker = CrossEncoderReranker(model=model)

@@ -166,14 +166,7 @@ class ConversationOrchestrator:
         if output is None:
             return ""
 
-        segments = getattr(output, "segments", None)
-        if segments is None and isinstance(output, dict):
-            segments = output.get("segments", [])
-        parts: list[str] = []
-        for segment in segments or []:
-            text = getattr(segment, "text", None)
-            if text is None and isinstance(segment, dict):
-                text = segment.get("text")
-            if isinstance(text, str) and text.strip():
-                parts.append(text.strip())
-        return "\n\n".join(parts)
+        answer = getattr(output, "answer", None)
+        if answer is None and isinstance(output, dict):
+            answer = output.get("answer")
+        return answer.strip() if isinstance(answer, str) else ""

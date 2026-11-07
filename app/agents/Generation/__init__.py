@@ -19,7 +19,7 @@ __all__ = [
     "GenerationConfig",
     "GenerationOutput",
     "GenerationStatus",
+    "AnswerSegment",
     "GenerationStreamEvent",
     "GenerationStreamEventType",
-    "AnswerSegment",
 ]

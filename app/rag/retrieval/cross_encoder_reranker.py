@@ -87,8 +87,10 @@ class CrossEncoderReranker:
             self._validate_candidate(candidate, index)
             for index, candidate in enumerate(candidates)
         ]
-
+        from rich import print
+        print("\n\n\n\nNormalized Candidates:", normalized)
         if self.model is not None:
+            print("\n\n\n\nUsing predict-compatible model for reranking.",self.model)
             return self._rerank_with_predict_model(query.strip(), normalized, top_k)
 
         payload = {
@@ -124,12 +126,23 @@ class CrossEncoderReranker:
 
             enriched = dict(normalized[index])
             enriched["metadata"] = dict(normalized[index].get("metadata") or {})
-            enriched["reranker_score"] = score
+            enriched["raw_reranker_score"] = score
+            enriched["reranker_score"] = self._normalize_score(score)
             reranked.append(enriched)
-
         if top_k is None and len(reranked) != len(normalized):
             raise RuntimeError("Jina reranker API returned a score count different from the candidate count.")
-        return reranked[:top_k] if top_k is not None else reranked
+        reranked= reranked[:top_k] if top_k is not None else reranked
+        print("\n\n\n\nReranked :", reranked)
+        return reranked
+    @staticmethod
+    def _normalize_score(score: float) -> float:
+        """Keep probability-like API scores; sigmoid-transform raw logits to [0, 1]."""
+        if 0.0 <= score <= 1.0:
+            return score
+        if score >= 0.0:
+            return 1.0 / (1.0 + math.exp(-score))
+        exp_score = math.exp(score)
+        return exp_score / (1.0 + exp_score)
 
     def _rerank_with_predict_model(
         self,
@@ -160,7 +173,8 @@ class CrossEncoderReranker:
                 raise ValueError("Cross-encoder scores must be finite.")
             enriched = dict(candidate)
             enriched["metadata"] = dict(candidate.get("metadata") or {})
-            enriched["reranker_score"] = score
+            enriched["raw_reranker_score"] = score
+            enriched["reranker_score"] = self._normalize_score(score)
             reranked.append(enriched)
 
         reranked.sort(

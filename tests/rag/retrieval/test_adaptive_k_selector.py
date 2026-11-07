@@ -57,7 +57,7 @@ def test_fewer_than_k_min_qualifying_candidates_request_expansion():
         [_candidate("a", 0.9), _candidate("b", 0.59), _candidate("c", 0.5)]
     )
 
-    assert result["selected_count"] == 1
+    assert result["selected_count"] == 3
     assert result["expansion_required"] is True
 
 
@@ -66,7 +66,7 @@ def test_zero_qualifying_candidates_request_expansion():
 
     result = selector.select([_candidate("a", 0.4), _candidate("b", 0.2)])
 
-    assert result["selected_candidates"] == []
+    assert [item["chunk_id"] for item in result["selected_candidates"]] == ["a", "b"]
     assert result["expansion_required"] is True
 
 
@@ -80,7 +80,7 @@ def test_expansion_stops_at_max_rounds_without_weak_fallback():
         expansion_round=2,
     )
 
-    assert result["selected_count"] == 1
+    assert result["selected_count"] == 2
     assert result["expansion_required"] is False
     assert result["expansion_round"] == 2
 
