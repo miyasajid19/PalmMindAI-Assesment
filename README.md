@@ -25,7 +25,7 @@ The hosted API exposes these endpoints:
 | `GET` | `/docs` | Interactive Swagger documentation |
 
 
-#### Hosted API — curl examples (PowerShell)
+#### Hosted API — curl examples (CMD)
 
 **1. Health check**
 
@@ -38,9 +38,7 @@ curl.exe "https://palmmindai-assesment.onrender.com/health"
 Place a sample file in your current directory, then run:
 
 ```powershell
-curl.exe -X POST "https://palmmindai-assesment.onrender.com/api/v1/documents/ingest" `
-  -F "file=@.\sample.pdf" `
-  -F "chunking_strategy=recursive"
+curl.exe -X POST "https://onrender.com" -F "file=@.\sample.pdf" -F "chunking_strategy=recursive"
 ```
 
 For semantic chunking, use `chunking_strategy=semantic`. Supported strategies are `recursive` and `semantic`.
