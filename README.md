@@ -1,159 +1,195 @@
-# SaviraVoice
+# SaviraCortex
 
-SaviraVoice contains the Python components for a shared-corpus document ingestion and retrieval-augmented generation (RAG) system.
+**SaviraCortex** is a document-ingestion and retrieval-augmented conversational AI backend developed for the **Palm Mind AI assessment**.
 
-## Core capabilities
+It provides FastAPI endpoints for document ingestion, standard JSON chat, and Server-Sent Events (SSE) streaming chat. The backend uses a shared document catalogue, vector retrieval, hybrid BM25 + dense search, reranking, and Redis-backed conversation history.
 
-- A common `DocumentLoader` dispatches `.pdf` files to the PDF/OCR handler and `.txt` files to the UTF-8 text handler; both yield normalized LangChain documents for the shared ingestion and indexing pipelines
-- Document registration and version lifecycle management
-- Qdrant summary candidate generation and hybrid dense/BM25 chunk retrieval
-- Result fusion, reranking, adaptive retrieval expansion, and RAG workflow nodes
-- Shared PostgreSQL document catalogue; retrieval and ingestion interfaces do not require organization or user IDs
+## Two ways to use the API
 
-## Conversational history
+### Option 1 — Quick start (use the hosted API)
 
-`ConversationOrchestrator` hydrates the RAG graph's `context` from Redis before each turn, then persists the user message and the generated assistant answer after graph completion. History is stored under `conversation:{session_id}`, trimmed to the most recent 10 turns, and uses a sliding inactivity TTL of 30 minutes by default.
+No local installation is needed to try the deployed API.
 
-Configure these optional environment values to adjust it:
+- **Hosted API base URL:** https://palmmindai-assesment.onrender.com/
+- **Swagger / interactive API docs:** https://palmmindai-assesment.onrender.com/docs
+- **Health check:** https://palmmindai-assesment.onrender.com/health
 
-- `CONVERSATION_HISTORY_TTL_SECONDS` (default: `1800`)
-- `CONVERSATION_HISTORY_MAX_TURNS` (default: `10`)
+The hosted API exposes these endpoints:
 
-At the request boundary, pass the compiled RAG graph and a stable conversation/session ID to the orchestrator:
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Check API process health |
+| `POST` | `/api/v1/documents/ingest` | Upload and index a PDF or TXT document |
+| `POST` | `/api/v1/chat` | Send a message and receive a JSON answer |
+| `POST` | `/api/v1/chat/stream` | Receive chat output as SSE events |
+| `GET` | `/docs` | Interactive Swagger documentation |
 
-```python
-from app.services.conversation_orchestrator import ConversationOrchestrator
-
-conversation_orchestrator = ConversationOrchestrator()
-result = await conversation_orchestrator.run_turn(
-    graph=rag_graph,
-    session_id=session_id,
-    query=user_message,
-)
-```
-
-Each request should use the same session ID to continue a conversation. A new session ID starts an independent history. Redis connectivity is configured with `AIVEN_REDIS_URI`.
-
-## Setup
-
-1. Install dependencies with uv sync.
-2. Copy .env.example to .env.
-3. Configure the PostgreSQL, Qdrant, object-storage, Redis, and LLM settings required by the components you run.
-
-
-
-RAG reranker selection uses RERANKER_SCORE_THRESHOLD (default 0.30) to filter Jina relevance scores. Tune this value against a labeled retrieval evaluation set before production rollout.
-
-## PDF OCR
-
-PDF extraction is native-text-first: PyMuPDF extracts text, and pages below the configured
-MIN_NATIVE_CHARS threshold are sent to the configured OCR engine. The default engine is
-FastOCR (OCR_ENGINE=fastocr), a hosted OCR API; EasyOCR is no longer included as a local
-model dependency. Set FASTOCR_API_KEY to enable cloud OCR. The API base URL defaults to
-https://api.fastocr.org and can be overridden with FASTOCR_BASE_URL; the request timeout
-is configurable with FASTOCR_TIMEOUT_SECONDS (default 300). Selected page images are sent
-externally to FastOCR, so account for API usage costs and document-data handling policies.
-Tesseract remains available as an optional local alternate (OCR_ENGINE=tesseract) if its
-system executable and language data are installed.
-
-## Utility scripts
-
-Run commands from the project root:
-
-- Ingest a PDF and optionally index its pending version:
-  uv run python scripts/ingestion.py path/to/file.pdf
-
-- Generate summary-based candidates:
-  uv run python scripts/candidate_documents.py --query "question text"
-
-- Search chunks using BM25:
-  uv run python scripts/qdrant_bm25.py "question text"
-
-- Inspect the Qdrant summary collection:
-  uv run python scripts/qdrant_summary_store.py list
-
-These utilities use configured external services and may require credentials and reachable infrastructure.
-
-## Tests
-
-Run the test suite with uv run pytest -q.
-
-Integration tests that require sample PDFs or external services may be skipped when their prerequisites are unavailable.
-
-## Interview booking conversation
-
-The conversation orchestrator routes interview scheduling requests to
-`InterviewBookingConversation` rather than sending those turns through document
-retrieval. The booking dialogue gathers a candidate's name, email, exact date,
-and time, summarizes the details, and requires an explicit affirmative
-confirmation before invoking the LangChain `book_interview` tool.
-
-The tool validates inputs, rejects past slots, checks the requested date/time,
-and persists a booking to PostgreSQL. A unique constraint on
-`(interview_date, interview_time)` protects against concurrent bookings for the
-same slot. Times are stored as application-local, timezone-naive values because
-the current table schema does not include a timezone field.
-
-For a database where `interview_bookings` already exists, apply the one-time
-migration in `app/core/migrations/20261107_add_interview_slot_unique.sql`.
-Review and resolve duplicate date/time slots before running it. `create_tables()`
-creates missing tables but does not modify existing table schemas.
-
-## FastAPI
-
-The application exposes document ingestion, chat, and health endpoints. At startup, the
-default \`app\` application composes the RAG graph using the configured
-PostgreSQL, Qdrant, embedding, and LLM services. The graph composition uses a
-short-lived SQLAlchemy session for each shared-catalogue read.
-
-Run the API from the project root:
-
-\`\`\`powershell
-uv sync
-uv run uvicorn app.main:app --reload
-\`\`\`
-
-Open the interactive API docs at \`http://127.0.0.1:8000/docs\`.
-
-### Document ingestion request
-
-`POST /api/v1/documents/ingest` accepts a multipart form upload with:
-
-- `file`: required PDF or TXT document
-- `chunking_strategy`: optional `recursive` (default) or `semantic`
-
-For a newly registered document, the endpoint completes indexing and activation
-before responding. Potential duplicates return `review_required` and are not
-indexed; exact duplicates return `duplicate` without creating a new version.
-The response includes the resulting status, matching classification, document
-and version IDs when registered, page/chunk counts, and validation warnings.
-
-Example using curl:
+Set the API base URL in PowerShell:
 
 ```powershell
-curl.exe -X POST http://127.0.0.1:8000/api/v1/documents/ingest `
-  -F "file=@path/to/document.pdf" `
+$API_BASE_URL = "https://palmmindai-assesment.onrender.com"
+```
+
+#### Hosted API — curl examples (PowerShell)
+
+**1. Health check**
+
+```powershell
+curl.exe "$API_BASE_URL/health"
+```
+
+**2. Ingest a PDF or TXT file**
+
+Place a sample file in your current directory, then run:
+
+```powershell
+curl.exe -X POST "$API_BASE_URL/api/v1/documents/ingest" `
+  -F "file=@.\sample.pdf" `
   -F "chunking_strategy=recursive"
 ```
 
-### Chat request
+For semantic chunking, use `chunking_strategy=semantic`. Supported strategies are `recursive` and `semantic`.
 
-\`POST /api/v1/chat\`
+**3. Chat (JSON response)**
 
-\`\`\`json
-{
-  "session_id": "candidate-session-001",
-  "query": "I'd like to schedule an interview."
-}
-\`\`\`
+```powershell
+curl.exe -X POST "$API_BASE_URL/api/v1/chat" `
+  -H "Content-Type: application/json" `
+  -d '{"session_id":"assessment-session-001","query":"Summarize the uploaded document."}'
+```
 
-The response includes the stable \`session_id\`, an \`answer\`, and a \`route\`
-(\`interview_booking\` or \`rag\`). Reuse the same session ID to continue the
-conversation; a new ID starts a new Redis-backed history.
+Reuse the same `session_id` to continue the conversation. A different session ID starts a separate conversation.
 
-### Health check
+**4. Chat (streaming SSE response)**
 
-\`GET /health\` returns \`{"status": "ok"}\` when the application process is
-running. It is a process health endpoint and does not independently ping
-PostgreSQL, Redis, or Qdrant.
+```powershell
+curl.exe -N -X POST "$API_BASE_URL/api/v1/chat/stream" `
+  -H "Content-Type: application/json" `
+  -H "Accept: text/event-stream" `
+  -d '{"session_id":"assessment-stream-001","query":"Explain the main ideas in the uploaded document."}'
+```
 
+The stream can emit `delta` events followed by a `completed` event. A route such as greeting or interview booking may complete without token-by-token deltas. Errors are sent as `error` events.
+
+---
+
+### Option 2 — Run the project locally (self-host)
+
+Use this option to clone the repository, configure your own services and run the backend locally.
+
+#### Requirements
+
+- Python 3.11 or newer (the exact requirement is specified in `.python-version` / project metadata).
+- [uv](https://docs.astral.sh/uv/)
+- PostgreSQL, Redis, Qdrant, object storage, and configured embedding/LLM provider credentials as required by the backend.
+
+#### 1. Clone the repository
+
+```powershell
+git clone https://github.com/miyasajid19/PalmMindAI-Assesment.git
+cd PalmMindAI-Assesment
+```
+
+#### 2. Create and configure your environment file
+
+Copy the example environment file. Populate the values locally; do not commit your `.env` file.
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Open `.env` and configure the required database, Redis, Qdrant, storage, LLM/embedding, and OCR credentials. The names and descriptions of the variables are documented in the environment template. Keep secrets private.
+
+#### 3. Install dependencies
+
+Run these commands from the repository root:
+
+```powershell
+uv sync
+```
+
+#### 4. Start the API — Terminal 1
+
+From the repository root:
+
+```powershell
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Local API URLs:
+
+- API base URL: `http://127.0.0.1:8000`
+- Swagger docs: `http://127.0.0.1:8000/docs`
+- Health check: `http://127.0.0.1:8000/health`
+
+#### 5. Send requests — Terminal 2
+
+Open a second PowerShell terminal and set the local base URL:
+
+```powershell
+$API_BASE_URL = "http://127.0.0.1:8000"
+```
+
+Use the same curl examples from the hosted Quick Start above. They will target your local API because `$API_BASE_URL` now points to localhost.
+
+---
+
+## Features
+
+- PDF and TXT ingestion with validation, document registration, version lifecycle handling, and indexing.
+- Recursive or semantic chunking, embeddings, and Qdrant vector storage.
+- Hybrid retrieval combining BM25 and dense search with reciprocal rank fusion (RRF), reranking, and adaptive retrieval.
+- Conversational RAG with Redis-backed session history.
+- Interview-booking conversation routing.
+- Standard JSON chat and SSE streaming chat endpoints.
+- FastAPI interactive API documentation.
+
+## Conversation history
+
+Conversation history is maintained in Redis under `conversation:{session_id}`. The default inactivity TTL is 30 minutes, and the default retained history is 10 turns. Configure these values using:
+
+- `CONVERSATION_HISTORY_TTL_SECONDS` (default `1800`)
+- `CONVERSATION_HISTORY_MAX_TURNS` (default `10`)
+- `AIVEN_REDIS_URI` for Redis connectivity
+
+A stable `session_id` maintains conversation continuity. A new session ID starts an independent conversation history.
+
+## PDF OCR
+
+PDF extraction is native-text-first. PyMuPDF extracts text, and pages below the configured `MIN_NATIVE_CHARS` threshold are sent to the selected OCR engine. FastOCR is the default hosted OCR provider (`OCR_ENGINE=fastocr`); set `FASTOCR_API_KEY` to enable it. Tesseract is available as an optional local alternative (`OCR_ENGINE=tesseract`) when its executable and language data are installed. Consider external OCR data-handling policies and provider costs.
+
+## Utility scripts
+
+Run these from the repository root:
+
+```powershell
+# Ingest a PDF locally through the utility pipeline
+uv run python scripts/ingestion.py path/to/file.pdf
+
+# Generate summary-based candidate documents
+uv run python scripts/candidate_documents.py --query "question text"
+
+# Search chunks with BM25
+uv run python scripts/qdrant_bm25.py "question text"
+
+# Inspect the Qdrant summary collection
+uv run python scripts/qdrant_summary_store.py list
+```
+
+## Tests
+
+```powershell
+uv run pytest -q
+```
+
+Some integration tests may be skipped when sample files or external service prerequisites are unavailable.
+
+## Interview booking
+
+The conversation orchestrator routes interview-scheduling intents to the interview-booking dialogue instead of document retrieval. It gathers candidate name, email, date, and time, summarizes the details, and requires explicit confirmation before booking. Booking validation rejects past slots and persists confirmed bookings in PostgreSQL.
+
+If the `interview_bookings` table already exists, apply the one-time migration at `app/core/migrations/20261107_add_interview_slot_unique.sql`. Review duplicate date/time entries before applying it; `create_tables()` creates missing tables but does not alter existing schemas.
+
+## Assessment
+
+This project was developed as the **Palm Mind AI assessment** submission.
