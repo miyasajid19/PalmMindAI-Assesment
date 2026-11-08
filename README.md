@@ -24,18 +24,13 @@ The hosted API exposes these endpoints:
 | `POST` | `/api/v1/chat/stream` | Receive chat output as SSE events |
 | `GET` | `/docs` | Interactive Swagger documentation |
 
-Set the API base URL in PowerShell:
-
-```powershell
-$API_BASE_URL = "https://palmmindai-assesment.onrender.com"
-```
 
 #### Hosted API — curl examples (PowerShell)
 
 **1. Health check**
 
 ```powershell
-curl.exe "$API_BASE_URL/health"
+curl.exe "https://palmmindai-assesment.onrender.com/health"
 ```
 
 **2. Ingest a PDF or TXT file**
@@ -43,7 +38,7 @@ curl.exe "$API_BASE_URL/health"
 Place a sample file in your current directory, then run:
 
 ```powershell
-curl.exe -X POST "$API_BASE_URL/api/v1/documents/ingest" `
+curl.exe -X POST "https://palmmindai-assesment.onrender.com/api/v1/documents/ingest" `
   -F "file=@.\sample.pdf" `
   -F "chunking_strategy=recursive"
 ```
@@ -53,9 +48,9 @@ For semantic chunking, use `chunking_strategy=semantic`. Supported strategies ar
 **3. Chat (JSON response)**
 
 ```powershell
-curl.exe -X POST "$API_BASE_URL/api/v1/chat" `
-  -H "Content-Type: application/json" `
-  -d '{"session_id":"assessment-session-001","query":"Summarize the uploaded document."}'
+
+curl.exe -X POST "https://palmmindai-assesment.onrender.com/api/v1/chat" -H "Content-Type: application/json" -d "{\"session_id\":\"assessment-session-001\",\"query\":\"Summarize the uploaded document.\"}"
+
 ```
 
 Reuse the same `session_id` to continue the conversation. A different session ID starts a separate conversation.
@@ -63,10 +58,7 @@ Reuse the same `session_id` to continue the conversation. A different session ID
 **4. Chat (streaming SSE response)**
 
 ```powershell
-curl.exe -N -X POST "$API_BASE_URL/api/v1/chat/stream" `
-  -H "Content-Type: application/json" `
-  -H "Accept: text/event-stream" `
-  -d '{"session_id":"assessment-stream-001","query":"Explain the main ideas in the uploaded document."}'
+curl.exe -X POST "https://palmmindai-assesment.onrender.com/api/v1/chat/stream" -H "Content-Type: application/json" -d "{\"session_id\":\"assessment-session-001\",\"query\":\"Explain the main ideas in the uploaded document.\"}"
 ```
 
 The stream can emit `delta` events followed by a `completed` event. A route such as greeting or interview booking may complete without token-by-token deltas. Errors are sent as `error` events.
