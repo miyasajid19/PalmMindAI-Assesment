@@ -144,6 +144,22 @@ Use the same curl examples from the hosted Quick Start above. They will target y
 - Standard JSON chat and SSE streaming chat endpoints.
 - FastAPI interactive API documentation.
 
+## Architecture diagrams
+
+The main document and conversation flows are illustrated below.
+
+### Stage 1 — Document ingestion
+
+![Stage 1: Document ingestion](diagrams/document_ingestion_stage_1.png)
+
+### Stage 2 — Document indexing and version activation
+
+![Stage 2: Document indexing and version activation](diagrams/document_ingestion_stage_2.png)
+
+### Stage 3 — Retrieval and generation
+
+![Stage 3: Retrieval and generation](diagrams/retrieval_and_generation_stage_3.png)
+
 ## Conversation history
 
 Conversation history is maintained in Redis under `conversation:{session_id}`. The default inactivity TTL is 30 minutes, and the default retained history is 10 turns. Configure these values using:

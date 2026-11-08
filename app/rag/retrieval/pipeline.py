@@ -75,12 +75,6 @@ class HybridRetrievalPipeline:
             }
             for rank, (document, score) in enumerate(ranked, 1)
         ]
-        from rich import print
-        print("BM25 Results:", bm25)
-        print("\n\n\n\n")
-        print("Dense Results:", dense)
-        print("\n\n\n\n")
-        print("Fused Results:", results)
         return {
             "query": query,
             "mode": mode,

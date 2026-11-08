@@ -87,10 +87,7 @@ class CrossEncoderReranker:
             self._validate_candidate(candidate, index)
             for index, candidate in enumerate(candidates)
         ]
-        from rich import print
-        print("\n\n\n\nNormalized Candidates:", normalized)
         if self.model is not None:
-            print("\n\n\n\nUsing predict-compatible model for reranking.",self.model)
             return self._rerank_with_predict_model(query.strip(), normalized, top_k)
 
         payload = {
@@ -132,7 +129,6 @@ class CrossEncoderReranker:
         if top_k is None and len(reranked) != len(normalized):
             raise RuntimeError("Jina reranker API returned a score count different from the candidate count.")
         reranked= reranked[:top_k] if top_k is not None else reranked
-        print("\n\n\n\nReranked :", reranked)
         return reranked
     @staticmethod
     def _normalize_score(score: float) -> float:

@@ -70,8 +70,6 @@ class AdaptiveKSelector:
             )
 
         eligible = []
-        from rich import print
-        print("\n\n\n\n+++++++++++Reranked Candidates:", reranked_candidates)
         for index, candidate in enumerate(reranked_candidates):
             if not isinstance(candidate, dict):
                 raise ValueError(f"Candidate {index} must be a dictionary.")
@@ -79,7 +77,6 @@ class AdaptiveKSelector:
                 raise ValueError(
                     f"Candidate {index} is missing required field: reranker_score."
                 )
-            print(f"\n\n\n\n\n\nCandidate {index} reranker_score: {candidate['reranker_score']}")
             score = candidate["reranker_score"]
             if isinstance(score, bool) or not isinstance(score, Real):
                 raise ValueError(f"Candidate {index} reranker_score must be numeric.")
