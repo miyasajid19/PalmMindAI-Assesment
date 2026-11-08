@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
 from langchain_core.messages import BaseMessage
-from langchain_core.output_parsers import JsonOutputParser, PydanticOutputParser
+from langchain_core.output_parsers import PydanticOutputParser
 
 from app.llm.generator_client import generator_llm_client
 from app.tools import book_interview
@@ -41,12 +41,14 @@ class GenerationAgent:
             max_output_tokens=self.config.max_output_tokens,
         )
         self.parser = PydanticOutputParser(pydantic_object=GenerationOutput)
-        self.streaming_parser = JsonOutputParser()
         self.prompt = get_generation_prompt(
             format_instructions=self.parser.get_format_instructions(),
         )
-        self.chain = self.prompt | self.llm | self.parser
-        self.streaming_chain = self.prompt | self.llm | self.streaming_parser
+        # Parse model output ourselves: some OpenAI-compatible providers return
+        # the requested JSON contract, while others return the answer as plain
+        # Markdown. Both formats should be accepted by the API.
+        self.chain = self.prompt | self.llm
+        self.streaming_chain = self.prompt | self.llm
 
     @staticmethod
     def _prepare_evidence(retrieved_documents: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -81,10 +83,54 @@ class GenerationAgent:
         return GenerationOutput(answer=GenerationAgent.INSUFFICIENT_EVIDENCE_MESSAGE)
 
     @staticmethod
+    def _content_text(result: Any) -> str:
+        """Extract textual content from a LangChain message or raw string."""
+        if isinstance(result, str):
+            return result
+        content = getattr(result, "content", None)
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            pieces: list[str] = []
+            for block in content:
+                if isinstance(block, str):
+                    pieces.append(block)
+                elif isinstance(block, dict) and isinstance(block.get("text"), str):
+                    pieces.append(block["text"])
+            return "".join(pieces)
+        if isinstance(result, dict):
+            if isinstance(result.get("answer"), str):
+                return result["answer"]
+            if isinstance(result.get("content"), str):
+                return result["content"]
+        raise GenerationAgentError("The model returned no textual content.")
+
+    @staticmethod
     def _parse_output(result: Any) -> GenerationOutput:
         if isinstance(result, GenerationOutput):
             return result
-        return GenerationOutput.model_validate(result)
+        if isinstance(result, dict) and isinstance(result.get("answer"), str):
+            return GenerationOutput.model_validate({"answer": result["answer"]})
+
+        text = GenerationAgent._content_text(result).strip()
+        # Remove optional Markdown fences around JSON before decoding.
+        candidate = text
+        if candidate.startswith("```"):
+            lines = candidate.splitlines()
+            if lines and lines[0].strip().lower() in {"```json", "```"}:
+                candidate = "\\n".join(lines[1:])
+            if candidate.rstrip().endswith("```"):
+                candidate = candidate.rstrip()[:-3].rstrip()
+        try:
+            parsed = json.loads(candidate)
+        except (json.JSONDecodeError, TypeError):
+            # Plain Markdown is a valid answer from providers that ignore the
+            # JSON format instruction. Do not fail an otherwise useful turn.
+            return GenerationOutput(answer=text)
+        if isinstance(parsed, dict) and isinstance(parsed.get("answer"), str):
+            return GenerationOutput.model_validate({"answer": parsed["answer"]})
+        # JSON that doesn't match our envelope is also surfaced as readable text.
+        return GenerationOutput(answer=text)
 
     @staticmethod
     def _build_payload(
@@ -142,34 +188,49 @@ class GenerationAgent:
             )
             return
 
-        latest_payload: dict[str, Any] | None = None
+        raw_text = ""
         streamed_answer = ""
+        decided_format = False
+        is_json_envelope = False
         try:
-            async for partial in self.streaming_chain.astream(
+            async for chunk in self.streaming_chain.astream(
                 self._build_payload(current_query, evidence, conversation_history),
                 config={"metadata": {"agent": "generation"}},
             ):
-                if not isinstance(partial, dict):
-                    raise GenerationAgentError("The streaming parser returned an unexpected value.")
-                latest_payload = partial
-                current_answer = partial.get("answer")
-                if not isinstance(current_answer, str) or current_answer == streamed_answer:
+                text_chunk = self._content_text(chunk)
+                if not text_chunk:
                     continue
-                if not current_answer.startswith(streamed_answer):
-                    raise GenerationAgentError("The streaming parser revised previously emitted answer text.")
-                delta = current_answer[len(streamed_answer):]
-                streamed_answer = current_answer
-                if delta:
+                raw_text += text_chunk
+
+                # JSON-envelope responses are buffered until the answer field
+                # can be safely extracted. Plain Markdown is streamed directly.
+                if not decided_format:
+                    probe = raw_text.lstrip()
+                    if probe:
+                        decided_format = True
+                        is_json_envelope = probe.startswith("{") or probe.startswith("```json")
+                if decided_format and not is_json_envelope:
+                    delta = raw_text[len(streamed_answer):]
+                    if delta:
+                        streamed_answer = raw_text
+                        yield GenerationStreamEvent(
+                            event_type=GenerationStreamEventType.CONTENT_DELTA,
+                            segment_index=0,
+                            delta=delta,
+                        )
+
+            if not raw_text.strip():
+                raise GenerationAgentError("The model stream completed without textual content.")
+            output = self._parse_output(raw_text)
+            if is_json_envelope:
+                # JSON is not user-facing text; emit the extracted answer only.
+                if output.answer:
                     yield GenerationStreamEvent(
                         event_type=GenerationStreamEventType.CONTENT_DELTA,
                         segment_index=0,
-                        delta=delta,
+                        delta=output.answer,
                     )
-
-            if latest_payload is None:
-                raise GenerationAgentError("The model stream completed without a structured response.")
-            output = self._parse_output(latest_payload)
-            if output.answer != streamed_answer:
+            elif output.answer != streamed_answer:
                 if not output.answer.startswith(streamed_answer):
                     raise GenerationAgentError("The final parsed answer differs from streamed text.")
                 delta = output.answer[len(streamed_answer):]
